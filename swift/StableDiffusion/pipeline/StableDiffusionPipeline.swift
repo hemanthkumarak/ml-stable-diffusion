@@ -24,9 +24,6 @@ public struct StableDiffusionPipeline {
     /// Optional model for checking safety of generated image
     var safetyChecker: SafetyChecker? = nil
 
-    /// Controls the influence of the text prompt on sampling process (0=random images)
-    var guidanceScale: Float = 7.5
-
     /// Reports whether this pipeline can perform safety checks
     public var canSafetyCheck: Bool {
         safetyChecker != nil
@@ -44,13 +41,12 @@ public struct StableDiffusionPipeline {
     public init(textEncoder: TextEncoder,
                 unet: Unet,
                 decoder: Decoder,
-                safetyChecker: SafetyChecker? = nil,
-                guidanceScale: Float = 7.5) {
+                safetyChecker: SafetyChecker? = nil
+    ) {
         self.textEncoder = textEncoder
         self.unet = unet
         self.decoder = decoder
         self.safetyChecker = safetyChecker
-        self.guidanceScale = guidanceScale
     }
 
     /// Text to image generation using stable diffusion
@@ -62,6 +58,7 @@ public struct StableDiffusionPipeline {
     ///   - seed: Random seed which
     ///   - disableSafety: Safety checks are only performed if `self.canSafetyCheck && !disableSafety`
     ///   - progressHandler: Callback to perform after each step, stops on receiving false response
+    ///   - guidanceScale: Controls the influence of the text prompt on sampling process (0=random images)
     /// - Returns: An array of `imageCount` optional images.
     ///            The images will be nil if safety checks were performed and found the result to be un-safe
     public func generateImages(
@@ -70,6 +67,7 @@ public struct StableDiffusionPipeline {
         stepCount: Int = 50,
         seed: Int = 0,
         disableSafety: Bool = false,
+        guidanceScale: Float = 7.5,
         progressHandler: (Progress) -> Bool = { _ in true }
     ) throws -> [CGImage?] {
 
@@ -109,7 +107,7 @@ public struct StableDiffusionPipeline {
                 hiddenStates: hiddenStates
             )
 
-            noise = performGuidance(noise)
+            noise = performGuidance(noise, guidanceScale: guidanceScale)
 
             // Have the scheduler compute the previous (t-1) latent
             // sample given the predicted noise and current sample
@@ -168,11 +166,11 @@ public struct StableDiffusionPipeline {
         return states
     }
 
-    func performGuidance(_ noise: [MLShapedArray<Float32>]) -> [MLShapedArray<Float32>] {
-        noise.map { performGuidance($0) }
+    func performGuidance(_ noise: [MLShapedArray<Float32>], guidanceScale: Float) -> [MLShapedArray<Float32>] {
+        noise.map { performGuidance($0, guidanceScale: guidanceScale) }
     }
 
-    func performGuidance(_ noise: MLShapedArray<Float32>) -> MLShapedArray<Float32> {
+    func performGuidance(_ noise: MLShapedArray<Float32>, guidanceScale: Float) -> MLShapedArray<Float32> {
 
         let blankNoiseScalars = noise[0].scalars
         let textNoiseScalars = noise[1].scalars
